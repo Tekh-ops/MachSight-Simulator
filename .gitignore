@@ -1,0 +1,26 @@
+# MachSight-Simulator
+.env
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+.venv/
+venv/
+env/
+.DS_Store
+
+# Run artifacts (keep directory, ignore contents)
+runs/*/
+!runs/.gitkeep
+
+# Dataset and benchmark results
+datasets/*/
+!datasets/.gitkeep
+results/*/
+!results/.gitkeep
+

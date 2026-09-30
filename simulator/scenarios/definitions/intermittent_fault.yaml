@@ -1,0 +1,29 @@
+name: intermittent_fault
+description: >
+  Current spike fault cycling ON (2s) / OFF (3s) throughout run.
+  Tests temporal anomaly detection — fault appears and disappears rhythmically.
+
+duration_s: 60
+random_seed: 55
+
+vehicle:
+  initial_pwm: 120
+  direction: forward
+  mode: forward
+
+environment:
+  obstacles:
+    - position_m: 200.0
+
+faults:
+  - type: intermittent
+    start_s: 5.0
+    duration_s: 50.0
+    severity: 0.7
+    on_seconds: 2.0
+    off_seconds: 3.0
+    inner_fault:
+      type: current_spike
+      start_s: 0.0
+      duration_s: null
+      severity: 0.7

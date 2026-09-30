@@ -1,0 +1,20 @@
+name: obstacle_approach
+description: >
+  Vehicle drives directly toward a nearby obstacle.
+  Ultrasonic distance decreases from ~200 cm to near-zero.
+  No faults — tests distance sensor and vehicle dynamics baseline.
+
+duration_s: 45
+random_seed: 3
+
+vehicle:
+  initial_pwm: 100
+  direction: forward
+  mode: forward
+
+environment:
+  obstacles:
+    - position_m: 25.0
+      width_m: 0.5
+
+faults: []

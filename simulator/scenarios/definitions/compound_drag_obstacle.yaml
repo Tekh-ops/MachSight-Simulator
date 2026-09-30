@@ -1,0 +1,25 @@
+name: compound_drag_obstacle
+description: >
+  Compound scenario: vehicle approaches a 40m obstacle while experiencing
+  progressive motor drag starting at T=20s. Tests cross-coupling of mechanical
+  resistance with obstacle perception.
+
+duration_s: 70
+duration_seconds: 70
+seed: 101
+
+driver:
+  profile: normal_cruise
+  pwm: 160
+
+environment:
+  obstacles:
+    - position_m: 40.0
+      width_m: 0.5
+
+faults:
+  - type: motor_drag
+    start_time: 20.0
+    duration_seconds: 40.0
+    severity: 0.65
+    component: motor

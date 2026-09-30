@@ -1,0 +1,30 @@
+name: compound_slip_sensor_noise
+description: >
+  Compound scenario: vehicle experiences wheel slip at T=25s under high ultrasonic
+  and current sensor noise. Tests ability of diagnostic filter to isolate true mechanical
+  loss-of-traction from noisy measurement artifacts.
+
+duration_s: 60
+duration_seconds: 60
+seed: 202
+
+driver:
+  profile: normal_cruise
+  pwm: 170
+
+environment:
+  obstacles:
+    - position_m: 100.0
+
+sensors:
+  ultrasonic:
+    noise_std_cm: 8.0
+  current:
+    noise_std_a: 0.25
+
+faults:
+  - type: wheel_slip
+    start_time: 25.0
+    duration_seconds: 30.0
+    severity: 0.70
+    component: wheel

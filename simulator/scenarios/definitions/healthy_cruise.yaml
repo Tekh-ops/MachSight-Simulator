@@ -1,0 +1,19 @@
+name: healthy_cruise
+description: >
+  Vehicle accelerates smoothly, cruises at target PWM, approaches an obstacle.
+  No faults. Baseline healthy behaviour for reference dataset generation.
+
+duration_s: 60
+random_seed: 1
+
+vehicle:
+  initial_pwm: 160
+  direction: forward
+  mode: forward
+
+environment:
+  obstacles:
+    - position_m: 80.0
+      width_m: 0.3
+
+faults: []

@@ -1,0 +1,37 @@
+name: sensor_failures
+description: >
+  Multiple sensor faults injected sequentially:
+    T=10s — ultrasonic stuck at 50 cm (30s)
+    T=45s — current sensor bias +1.5A (15s)
+    T=65s — RPM dropout probability 0.8 (15s)
+  Tests sensor-level anomaly classification independently of mechanical faults.
+
+duration_s: 90
+random_seed: 99
+
+vehicle:
+  initial_pwm: 130
+  direction: forward
+  mode: forward
+
+environment:
+  obstacles:
+    - position_m: 120.0
+
+faults:
+  - type: ultrasonic_stuck
+    start_s: 10.0
+    duration_s: 30.0
+    severity: 1.0
+    stuck_value_cm: 50.0
+
+  - type: current_bias
+    start_s: 45.0
+    duration_s: 15.0
+    severity: 1.0
+    bias_a: 1.5
+
+  - type: rpm_dropout
+    start_s: 65.0
+    duration_s: 15.0
+    severity: 0.8

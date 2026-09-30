@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machsight.io/schemas/telemetry.schema.json",
+  "title": "TelemetryMessage",
+  "description": "Canonical telemetry payload produced by any TelemetrySource (Simulator, MockHardware, ESP32 Bluetooth / Serial). Boundary contract object crossing into MachSight. Ground-truth and simulator-only variables are strictly forbidden.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "timestamp",
+    "sequence",
+    "machine",
+    "operating_state",
+    "sensors",
+    "sensor_status",
+    "source"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 2,
+      "description": "Canonical contract schema version (integer, monotonically increasing)"
+    },
+    "timestamp": {
+      "type": "number",
+      "minimum": 1000000000.0,
+      "description": "Event timestamp in UTC Unix epoch seconds with sub-second precision"
+    },
+    "measurement_timestamp": {
+      "type": ["number", "null"],
+      "default": null,
+      "description": "Optional physical sensor acquisition timestamp if distinct from transmission timestamp"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "Monotonically increasing packet sequence counter within a source session"
+    },
+    "machine": {
+      "$ref": "#/$defs/MachineInfo"
+    },
+    "operating_state": {
+      "$ref": "#/$defs/OperatingState"
+    },
+    "sensors": {
+      "$ref": "#/$defs/SensorReadings"
+    },
+    "sensor_status": {
+      "$ref": "#/$defs/SensorStatus"
+    },
+    "source": {
+      "$ref": "#/$defs/SourceInfo"
+    }
+  },
+  "$defs": {
+    "MachineInfo": {
+      "title": "MachineInfo",
+      "description": "Machine identity and category classification.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "machine_id"
+      ],
+      "properties": {
+        "machine_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique machine identifier (e.g. 'rc-car-01')"
+        },
+        "asset_type": {
+          "type": "string",
+          "default": "rc_vehicle",
+          "description": "Asset category (e.g. 'rc_vehicle')"
+        }
+      }
+    },
+    "OperatingState": {
+      "title": "OperatingState",
+      "description": "Observable machine operating mode and control actuation input.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "default": "idle",
+          "description": "Operating state: 'idle' | 'forward' | 'reverse' | 'braking' | 'stopped'"
+        },
+        "pwm_command": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "default": 0,
+          "description": "Motor throttle duty command [0, 255]"
+        }
+      }
+    },
+    "SensorReadings": {
+      "title": "SensorReadings",
+      "description": "Three observable sensor outputs in canonical engineering units. Null indicates sensor dropout or unacquired sample.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "distance_cm": {
+          "type": ["number", "null"],
+          "minimum": 0.0,
+          "maximum": 1000.0,
+          "default": null,
+          "description": "Ultrasonic distance to forward obstacle (centimeters)"
+        },
+        "current_a": {
+          "type": ["number", "null"],
+          "minimum": 0.0,
+          "maximum": 50.0,
+          "default": null,
+          "description": "Motor current draw (Amperes)"
+        },
+        "wheel_rpm": {
+          "type": ["number", "null"],
+          "minimum": 0.0,
+          "maximum": 5000.0,
+          "default": null,
+          "description": "Wheel rotational speed (Revolutions Per Minute)"
+        }
+      }
+    },
+    "SensorStatus": {
+      "title": "SensorStatus",
+      "description": "Per-sensor health and acquisition status. Allows downstream anomaly detectors to differentiate broken sensors from mechanical faults.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "distance": {
+          "type": "string",
+          "default": "ok",
+          "enum": ["ok", "good", "stale", "dropped", "degraded", "invalid", "noisy", "disconnected"],
+          "description": "Ultrasonic rangefinder acquisition health"
+        },
+        "current": {
+          "type": "string",
+          "default": "ok",
+          "enum": ["ok", "good", "stale", "dropped", "degraded", "invalid", "noisy", "disconnected"],
+          "description": "Motor current sensor acquisition health"
+        },
+        "wheel_rpm": {
+          "type": "string",
+          "default": "ok",
+          "enum": ["ok", "good", "stale", "dropped", "degraded", "invalid", "noisy", "disconnected"],
+          "description": "Wheel speed encoder acquisition health"
+        }
+      }
+    },
+    "SourceInfo": {
+      "title": "SourceInfo",
+      "description": "Source provenance and transport metadata. Informational only.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_type",
+        "device_id"
+      ],
+      "properties": {
+        "source_type": {
+          "type": "string",
+          "default": "simulator",
+          "description": "Source classification: 'simulator' | 'hardware' | 'mock_hardware'"
+        },
+        "device_id": {
+          "type": "string",
+          "description": "Originating physical or virtual hardware device identifier (e.g. 'esp32-rc-01')"
+        },
+        "transport": {
+          "type": "string",
+          "default": "simulation",
+          "description": "Transport medium: 'simulation' | 'websocket' | 'bluetooth' | 'serial' | 'mock'"
+        },
+        "firmware_version": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Optional embedded device firmware version"
+        },
+        "session_id": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Session UUID for stream continuity and sequence tracking"
+        }
+      }
+    }
+  }
+}

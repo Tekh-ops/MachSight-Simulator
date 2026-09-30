@@ -1,0 +1,24 @@
+name: gradual_motor_drag
+description: >
+  Motor drag begins at T=15s and increases severity from 0.1 to 0.9 over 60s.
+  RPM progressively falls, current gradually rises.
+  Tests anomaly detection of slow degradation.
+
+duration_s: 90
+random_seed: 7
+
+vehicle:
+  initial_pwm: 150
+  direction: forward
+  mode: forward
+
+environment:
+  obstacles:
+    - position_m: 200.0
+
+faults:
+  - type: motor_drag
+    start_s: 15.0
+    duration_s: 60.0
+    severity: 0.1
+    severity_end: 0.9

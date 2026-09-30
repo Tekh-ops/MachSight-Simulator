@@ -1,0 +1,30 @@
+name: compound_jam_sensor_fault
+description: >
+  Compound scenario: sudden drivetrain jam at T=30s followed by RPM encoder dropout
+  at T=35s. Tests whether simultaneous mechanical lock and sensor dropout are
+  accurately diagnosed rather than misclassified.
+
+duration_s: 60
+duration_seconds: 60
+seed: 303
+
+driver:
+  profile: normal_cruise
+  pwm: 180
+
+environment:
+  obstacles:
+    - position_m: 150.0
+
+faults:
+  - type: drivetrain_jam
+    start_time: 30.0
+    duration_seconds: 25.0
+    severity: 0.85
+    component: drivetrain
+
+  - type: rpm_dropout
+    start_time: 35.0
+    duration_seconds: 15.0
+    severity: 0.90
+    component: rpm_sensor

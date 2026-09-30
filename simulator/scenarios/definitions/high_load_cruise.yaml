@@ -1,0 +1,19 @@
+name: high_load_cruise
+description: >
+  Sustained high throttle operation (PWM=230) without mechanical fault.
+  Tests whether high normal motor current draw is correctly distinguished from an electrical short
+  or mechanical jam. No faults injected.
+
+duration_s: 50
+duration_seconds: 50
+seed: 505
+
+driver:
+  profile: high_load
+  pwm: 230
+
+environment:
+  obstacles:
+    - position_m: 250.0
+
+faults: []

@@ -1,0 +1,24 @@
+name: wheel_slip
+description: >
+  Wheel slip fault at T=20s (severity 0.75).
+  Motor RPM stays high but vehicle velocity decreases significantly.
+  Ultrasonic distance changes much more slowly than RPM would suggest.
+  Tests cross-sensor consistency anomaly detection.
+
+duration_s: 70
+random_seed: 13
+
+vehicle:
+  initial_pwm: 140
+  direction: forward
+  mode: forward
+
+environment:
+  obstacles:
+    - position_m: 100.0
+
+faults:
+  - type: wheel_slip
+    start_s: 20.0
+    duration_s: 40.0
+    severity: 0.75

@@ -1,0 +1,40 @@
+name: benchmark_v1
+description: >
+  Full diagnostic benchmark evaluation suite covering baseline healthy regimes,
+  mechanical failures, sensor defects, intermittent glitches, and compound multi-fault scenarios.
+
+version: "1.0.0"
+runs_per_scenario: 5
+base_seed: 1000
+
+scenarios:
+  # Healthy baseline regimes
+  - healthy_cruise
+  - stop_and_go
+  - high_load_cruise
+  - obstacle_approach
+
+  # Mechanical faults
+  - sudden_drivetrain_jam
+  - gradual_motor_drag
+  - wheel_slip
+
+  # Sensor faults
+  - sensor_failures
+  - intermittent_fault
+
+  # Compound multi-fault scenarios
+  - compound_drag_obstacle
+  - compound_slip_sensor_noise
+  - compound_jam_sensor_fault
+
+evaluation:
+  data_quality: true
+  detection: true
+  diagnosis: true
+  latency: true
+
+# Configurable regression thresholds
+thresholds:
+  max_packet_loss_rate: 0.05
+  min_reproducibility_rate: 1.0

@@ -1,0 +1,28 @@
+name: full_demo
+description: >
+  Polished end-to-end demonstration scenario:
+    0–10s   : vehicle accelerates from idle
+    10–35s  : healthy cruise, obstacle approach (obstacle at 30m)
+    35–40s  : transition
+    40–50s  : drivetrain jam (severity 0.85)
+    50–90s  : vehicle stopped, ultrasonic stabilises
+  MachSight should detect the anomaly and classify the drivetrain jam.
+
+duration_s: 90
+random_seed: 42
+
+vehicle:
+  initial_pwm: 175
+  direction: forward
+  mode: forward
+
+environment:
+  obstacles:
+    - position_m: 30.0
+      width_m: 0.5
+
+faults:
+  - type: drivetrain_jam
+    start_s: 40.0
+    duration_s: 50.0
+    severity: 0.85

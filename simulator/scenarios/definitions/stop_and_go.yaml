@@ -1,0 +1,18 @@
+name: stop_and_go
+description: >
+  Dynamic healthy urban stop-and-go regime: alternates forward acceleration,
+  braking, and idling. Tests false alarm resistance against aggressive normal throttle changes.
+  No faults injected.
+
+duration_s: 64
+duration_seconds: 64
+seed: 404
+
+driver:
+  profile: stop_and_go
+
+environment:
+  obstacles:
+    - position_m: 200.0
+
+faults: []

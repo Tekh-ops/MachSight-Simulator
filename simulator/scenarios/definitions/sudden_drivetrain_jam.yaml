@@ -1,0 +1,23 @@
+name: sudden_drivetrain_jam
+description: >
+  Vehicle cruises at PWM=175, then at T=40s suffers a sudden drivetrain jam.
+  RPM drops sharply, current surges, vehicle stops.
+  Classic multi-sensor anomaly for fault detection testing.
+
+duration_s: 90
+random_seed: 42
+
+vehicle:
+  initial_pwm: 175
+  direction: forward
+  mode: forward
+
+environment:
+  obstacles:
+    - position_m: 150.0
+
+faults:
+  - type: drivetrain_jam
+    start_s: 40.0
+    duration_s: 30.0
+    severity: 0.85

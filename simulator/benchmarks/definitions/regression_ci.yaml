@@ -1,0 +1,25 @@
+name: regression_ci
+description: >
+  Fast deterministic regression benchmark suite intended for continuous integration.
+  Executes short runs of healthy, mechanical, and sensor scenarios to detect breaking changes.
+
+version: "1.0.0"
+runs_per_scenario: 1
+base_seed: 42
+duration_override_s: 15.0
+
+scenarios:
+  - healthy_cruise
+  - sudden_drivetrain_jam
+  - gradual_motor_drag
+  - wheel_slip
+  - sensor_failures
+
+evaluation:
+  data_quality: true
+  detection: true
+  diagnosis: true
+
+thresholds:
+  max_packet_loss_rate: 0.01
+  min_reproducibility_rate: 1.0
