@@ -371,6 +371,10 @@ class SimulationEngine:
         IMPORTANT: no fault information is included.
         """
         self.sequence += 1
+        cur_eff = cur if cur is not None else self.current_sensor._last_reading
+        rpm_eff = rpm if rpm is not None else self.rpm_sensor._last_reading
+        us_eff = us if us is not None else self.ultrasonic._last_reading
+
         return TelemetryMessage(
             timestamp=time.time(),
             sequence=self.sequence,
@@ -383,14 +387,14 @@ class SimulationEngine:
                 pwm_command=self.vehicle.pwm_command,
             ),
             sensors=SensorReadings(
-                distance_cm=us.value if us is not None else None,
-                current_a=cur.value if cur is not None else None,
-                wheel_rpm=rpm.value if rpm is not None else None,
+                distance_cm=us_eff.value if us_eff is not None else None,
+                current_a=cur_eff.value if cur_eff is not None else None,
+                wheel_rpm=rpm_eff.value if rpm_eff is not None else None,
             ),
             sensor_status=SensorStatus(
-                distance=us.quality.value if us is not None else "ok",
-                current=cur.quality.value if cur is not None else "ok",
-                wheel_rpm=rpm.quality.value if rpm is not None else "ok",
+                distance=us_eff.quality.value if us_eff is not None else "ok",
+                current=cur_eff.quality.value if cur_eff is not None else "ok",
+                wheel_rpm=rpm_eff.quality.value if rpm_eff is not None else "ok",
             ),
             source=SourceInfo(
                 source_type="simulator",
