@@ -31,6 +31,8 @@ class DriverProfileType(str, Enum):
     NORMAL_CRUISE = "normal_cruise"
     HIGH_LOAD = "high_load"
     STOP_AND_GO = "stop_and_go"
+    FULL_DEMO = "full_demo"
+    DIAGNOSTIC_DEMO = "diagnostic_demo"
     CUSTOM = "custom"
 
 
@@ -79,6 +81,21 @@ class DriverProfile:
         elif self.profile_type == DriverProfileType.HIGH_LOAD:
             pwm = int(self.config.get("pwm", 230))
             return DriverCommand(pwm=pwm, mode=VehicleMode.FORWARD)
+
+        elif self.profile_type in (DriverProfileType.FULL_DEMO, DriverProfileType.DIAGNOSTIC_DEMO):
+            # Polished industrial demo timeline:
+            # 0–8s:   idle / initialization (PWM 0, mode IDLE)
+            # 8–18s:  acceleration (PWM ramps to cruise, mode FORWARD)
+            # 18s+:   sustained command through cruise, jam, recovery (PWM target, mode FORWARD)
+            target_pwm = int(self.config.get("pwm", 160))
+            if sim_time < 8.0:
+                return DriverCommand(pwm=0, mode=VehicleMode.IDLE)
+            elif sim_time < 14.0:
+                ramp_pct = (sim_time - 8.0) / 6.0
+                cmd_pwm = int(target_pwm * ramp_pct)
+                return DriverCommand(pwm=max(40, cmd_pwm), mode=VehicleMode.FORWARD)
+            else:
+                return DriverCommand(pwm=target_pwm, mode=VehicleMode.FORWARD)
 
         elif self.profile_type == DriverProfileType.STOP_AND_GO:
             # 16-second repeating cycle:

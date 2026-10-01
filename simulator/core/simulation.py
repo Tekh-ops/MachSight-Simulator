@@ -403,11 +403,16 @@ class SimulationEngine:
             ),
         )
 
-    # ── Ground truth ──────────────────────────────────────────────────────────
+        # ── Ground truth ──────────────────────────────────────────────────────────
 
     def _record_ground_truth(self) -> None:
         """Append a ground-truth record (never exposed via telemetry)."""
         active_fault_list = self.fault_manager.active_faults
+        regime_val = (
+            self.vehicle.operating_state.value
+            if hasattr(self.vehicle.operating_state, "value")
+            else str(self.vehicle.operating_state)
+        )
         gt = {
             "sim_time": round(self.sim_time, 4),
             "wall_time": time.time(),
@@ -420,6 +425,7 @@ class SimulationEngine:
             "battery_voltage": round(self.vehicle.battery_voltage, 3),
             "wheel_slip": round(self.vehicle.wheel_slip, 4),
             "mechanical_load": round(self.vehicle.mechanical_load, 4),
+            "operating_state": regime_val,
             "is_healthy": len(active_fault_list) == 0,
             "active_faults": [f["type"] for f in active_fault_list],
             "active_fault_details": active_fault_list,
@@ -439,6 +445,11 @@ class SimulationEngine:
 
     def get_status(self) -> dict:
         """Return simulation status for /simulation/status."""
+        regime_val = (
+            self.vehicle.operating_state.value
+            if hasattr(self.vehicle.operating_state, "value")
+            else str(self.vehicle.operating_state)
+        )
         return {
             "running": self.running,
             "paused": self.paused,
@@ -446,6 +457,7 @@ class SimulationEngine:
             "simulation_time_s": round(self.sim_time, 3),
             "machine_id": self.cfg.machine_id,
             "mode": self.vehicle.mode.value,
+            "operating_state": regime_val,
             "pwm_command": self.vehicle.pwm_command,
             "position_m": round(self.vehicle.position_m, 3),
             "velocity_mps": round(self.vehicle.velocity_mps, 3),

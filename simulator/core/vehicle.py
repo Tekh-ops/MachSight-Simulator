@@ -42,6 +42,22 @@ class VehicleMode(str, enum.Enum):
     TURNING_LEFT = "turning_left"
     TURNING_RIGHT = "turning_right"
     STOPPED = "stopped"
+    # Regime aliases
+    ACCELERATING = "accelerating"
+    CRUISING = "cruising"
+    DECELERATING = "decelerating"
+    FAULTED = "faulted"
+    RECOVERING = "recovering"
+
+
+class OperatingRegime(str, enum.Enum):
+    IDLE = "idle"
+    ACCELERATING = "accelerating"
+    CRUISING = "cruising"
+    DECELERATING = "decelerating"
+    FAULTED = "faulted"
+    STOPPED = "stopped"
+    RECOVERING = "recovering"
 
 
 @dataclasses.dataclass
@@ -56,6 +72,7 @@ class VehicleState:
     pwm_command: int = 0
     direction: int = 1            # +1 = forward, -1 = reverse
     mode: VehicleMode = VehicleMode.IDLE
+    operating_state: OperatingRegime = OperatingRegime.IDLE
 
     # ── Dynamics ─────────────────────────────────────────────────────────────
     position_m: float = 0.0
@@ -79,7 +96,7 @@ class VehicleState:
     # ── Environment coupling ──────────────────────────────────────────────────
     obstacle_distance_m: float = 10.0   # m to nearest obstacle
 
-    # ── Wheel slip ────────────────────────────────────────────────────────────
+    # ── Wheel slip ────────────────────────────────────────────────────
     wheel_slip: float = 0.0       # 0.0 = no slip, 1.0 = full slip
 
 
@@ -96,8 +113,7 @@ class VehicleDynamics:
     """
 
     # ── Current model constants ───────────────────────────────────────────────
-    # I = I_idle + k_torque * torque + k_load * load
-    I_IDLE = 0.15          # A — no-load idle current
+    I_IDLE = 0.15          # A — no-load idle quiescent electronics current
     K_TORQUE = 1.8         # A per unit torque
     K_LOAD = 2.2           # A per unit mechanical load
 
@@ -127,17 +143,32 @@ class VehicleDynamics:
     ) -> float:
         """Map throttle duty to target RPM.
 
-        Higher load → lower achievable RPM at the same throttle.
-        Battery depletion also reduces max RPM.
+        Higher load -> lower achievable RPM at the same throttle.
+        Under severe drivetrain obstruction (load_factor >= 0.75),
+        motor stalls (target RPM -> 0).
         """
-        if mode in (VehicleMode.IDLE, VehicleMode.STOPPED):
+        if mode in (VehicleMode.IDLE, VehicleMode.STOPPED, VehicleMode.BRAKING):
             return 0.0
-        if mode == VehicleMode.BRAKING:
+        if duty <= 1e-4:
             return 0.0
 
         base_rpm = duty * self.cfg.max_rpm * battery_factor
-        # Severe load (e.g. drivetrain jam) severely impedes motor rotation
-        return base_rpm * max(0.05, 1.0 - 0.85 * load_factor)
+
+        # Load reduction curve based on motor torque vs load torque equilibrium
+        if load_factor <= 0.05:
+            # Baseline rolling resistance: ~5% speed drop
+            factor = 1.0 - 0.10 * (load_factor / 0.05)
+        elif load_factor < 0.65:
+            # Moderate drag (bearing wear, terrain): drops up to 45%
+            drag_norm = (load_factor - 0.05) / 0.60
+            factor = 0.90 - 0.40 * drag_norm
+        else:
+            # Severe obstruction / drivetrain jam: motor cannot overcome load
+            # At load_factor >= 0.85, the motor stalls (RPM -> 0)
+            jam_severity = min(1.0, (load_factor - 0.65) / 0.20)
+            factor = 0.50 * (1.0 - jam_severity)
+
+        return max(0.0, base_rpm * factor)
 
     # ── RPM update (first-order lag) ──────────────────────────────────────────
 
@@ -148,34 +179,33 @@ class VehicleDynamics:
         dt: float,
         mode: VehicleMode,
         wheel_slip_factor: float = 0.0,
+        extra_load: float = 0.0,
     ) -> float:
         """Apply first-order lag toward target RPM.
 
-        Acceleration and deceleration are independently clamped so the
-        vehicle decelerates faster than it accelerates (more realistic).
+        Acceleration and deceleration are independently clamped.
+        Under severe mechanical load (e.g. drivetrain obstruction),
+        mechanical braking friction smoothly decelerates the wheels to zero.
         """
         if mode == VehicleMode.BRAKING:
             # Active braking — faster deceleration
             decel = self.cfg.max_deceleration * 2.0
-            new_rpm = max(0.0, current_rpm - decel * dt)
-            return new_rpm
+            return max(0.0, current_rpm - decel * dt)
 
         # First-order lag: dRPM/dt = (target - current) / τ
         error = target_rpm - current_rpm
         rate = error / max(self.cfg.motor_response_time, 1e-6)
 
+        # Mechanical obstruction increases deceleration braking torque
+        load_decel_boost = 1.0 + 1.5 * min(1.0, extra_load)
+
         # Clamp rate to physical limits
         if rate > 0:
             rate = min(rate, self.cfg.max_acceleration)
         else:
-            rate = max(rate, -self.cfg.max_deceleration)
+            rate = max(rate, -self.cfg.max_deceleration * load_decel_boost)
 
         new_rpm = current_rpm + rate * dt
-
-        # Wheel slip: motor spins but vehicle doesn't move proportionally
-        # The RPM itself stays high; velocity coupling is reduced elsewhere.
-        # No RPM clamp change needed for slip.
-
         return max(0.0, new_rpm)
 
     # ── Velocity from RPM ─────────────────────────────────────────────────────
@@ -196,23 +226,55 @@ class VehicleDynamics:
         effective_v = no_slip_v * (1.0 - wheel_slip)
         return direction * effective_v
 
-    # ── Current from torque and load ──────────────────────────────────────────
+    # ── Current from electromechanical state ──────────────────────────────────
 
     def compute_current(
         self,
         duty: float,
         mechanical_load: float,
         battery_factor: float,
+        wheel_rpm: float = 0.0,
     ) -> float:
-        """Estimate motor current from operating point.
+        """Estimate motor current from operating point and electromechanical state.
 
-        Model:
-            I = I_idle + k_torque * (duty * battery_factor)
-                       + k_load   * mechanical_load
+        Physics Model:
+        - When duty == 0 (motor unpowered / idle):
+            Current is strictly quiescent idle electronics current I_IDLE.
+        - When duty > 0:
+            Applied voltage: V_applied = duty * V_nominal * battery_factor
+            Back-EMF: E_back = k_e * wheel_rpm
+            Net armature voltage: V_net = max(0, V_applied - E_back)
+            Armature current: I_armature = V_net / R_armature
+            Load torque current: k_load * mechanical_load * duty * battery_factor
+            Total = I_IDLE + I_armature + load_torque_current
         """
-        torque_component = self.K_TORQUE * duty * battery_factor
-        load_component = self.K_LOAD * mechanical_load
-        return max(0.0, self.I_IDLE + torque_component + load_component)
+        if duty <= 1e-4:
+            return self.I_IDLE
+
+        v_batt = self.cfg.battery_nominal_v * battery_factor
+        v_applied = duty * v_batt
+
+        # Back-EMF constant: at no-load max_rpm (~400 RPM), back-EMF reaches ~72% of applied voltage
+        ke = (0.72 * self.cfg.battery_nominal_v) / max(self.cfg.max_rpm, 1.0)
+        e_back = min(v_applied * 0.88, ke * max(0.0, wheel_rpm))
+
+        # Net driving voltage across motor armature
+        v_net = max(0.0, v_applied - e_back)
+
+        # Armature resistance: tuned so that stall at duty ~0.63 draws ~3.2-3.8A
+        r_armature = 1.35
+        armature_current = v_net / r_armature
+
+        # Baseline running current when motor coils are energized
+        base_energized = 0.35 * duty * battery_factor
+
+        # Mechanical resistance torque compensation
+        load_current = 0.75 * duty * mechanical_load * battery_factor
+
+        total_current = self.I_IDLE + base_energized + armature_current + load_current
+
+        # Sensible physical limit for RC car electronics / fuse
+        return min(5.5, max(self.I_IDLE, total_current))
 
     # ── Battery ───────────────────────────────────────────────────────────────
 
@@ -235,6 +297,50 @@ class VehicleDynamics:
             + self.BATTERY_VOLTAGE_SLOPE * (1.0 - new_soc)
         )
         return new_soc, max(0.0, new_voltage)
+
+    # ── Operating Regime Determination ────────────────────────────────────────
+
+    def determine_regime(
+        self,
+        state: VehicleState,
+        extra_load: float,
+        target_rpm: float,
+        rpm_rate: float,
+        prev_regime: OperatingRegime,
+    ) -> OperatingRegime:
+        """Evaluate the physical machine operating regime."""
+        if state.pwm_command == 0 or state.throttle_duty < 0.01:
+            if state.wheel_rpm < 1.0 and abs(state.velocity_mps) < 0.05:
+                if prev_regime in (
+                    OperatingRegime.DECELERATING,
+                    OperatingRegime.STOPPED,
+                ):
+                    return OperatingRegime.STOPPED
+                return OperatingRegime.IDLE
+            return OperatingRegime.DECELERATING
+
+        # Commanded forward/motion (duty >= 0.01)
+        if extra_load >= 0.4:
+            return OperatingRegime.FAULTED
+
+        # If recovering from a fault
+        if prev_regime in (OperatingRegime.FAULTED, OperatingRegime.RECOVERING):
+            if state.wheel_rpm < target_rpm * 0.85:
+                return OperatingRegime.RECOVERING
+
+        if state.mode == VehicleMode.BRAKING:
+            return OperatingRegime.DECELERATING
+
+        if target_rpm > 10.0 and state.wheel_rpm < target_rpm * 0.85 and rpm_rate > 1.0:
+            return OperatingRegime.ACCELERATING
+        elif rpm_rate < -5.0 and state.wheel_rpm > target_rpm * 1.15:
+            return OperatingRegime.DECELERATING
+        elif state.wheel_rpm >= target_rpm * 0.80 and state.wheel_rpm > 10.0:
+            return OperatingRegime.CRUISING
+        elif state.wheel_rpm > 20.0:
+            return OperatingRegime.CRUISING
+        else:
+            return OperatingRegime.ACCELERATING
 
     # ── Master update ─────────────────────────────────────────────────────────
 
@@ -277,19 +383,30 @@ class VehicleDynamics:
             state.wheel_slip = wheel_slip_override
 
         # --- Update wheel RPM (first-order lag) --------------------------
+        prev_rpm = state.wheel_rpm
         state.wheel_rpm = self.update_rpm(
             state.wheel_rpm,
             target_rpm,
             dt,
             state.mode,
             state.wheel_slip,
+            extra_load=extra_load,
         )
+        rpm_rate = (state.wheel_rpm - prev_rpm) / max(dt, 1e-6)
 
         # --- Motor torque (proportional to current demand) ---------------
         state.motor_torque = duty * battery_factor * (1.0 - 0.3 * total_load)
 
         # --- Motor current -----------------------------------------------
-        state.motor_current = self.compute_current(duty, total_load, battery_factor)
+        state.motor_current = self.compute_current(
+            duty, total_load, battery_factor, wheel_rpm=state.wheel_rpm
+        )
+
+        # --- Operating regime --------------------------------------------
+        prev_regime = getattr(state, "operating_state", OperatingRegime.IDLE)
+        state.operating_state = self.determine_regime(
+            state, extra_load, target_rpm, rpm_rate, prev_regime
+        )
 
         # --- Battery update ----------------------------------------------
         state.battery_state, state.battery_voltage = self.update_battery(

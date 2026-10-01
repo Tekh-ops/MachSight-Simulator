@@ -32,6 +32,7 @@ class MachineState:
     battery_voltage: float
     wheel_slip: float
     mechanical_load: float
+    operating_state: str = "idle"
 
 
 @dataclass
@@ -87,6 +88,7 @@ class GroundTruthSnapshot:
             battery_voltage=float(d.get("battery_voltage", 7.4)),
             wheel_slip=float(d.get("wheel_slip", 0.0)),
             mechanical_load=float(d.get("mechanical_load", 0.0)),
+            operating_state=str(d.get("operating_state", "idle")),
         )
         env = EnvironmentState(obstacle_distance_m=float(d.get("obstacle_distance_m", 999.0)))
         active = [str(x) for x in d.get("active_faults", [])]

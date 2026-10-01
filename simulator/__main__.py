@@ -63,6 +63,12 @@ def build_parser() -> argparse.ArgumentParser:
     rep_p.add_argument("--speed", type=float, default=1.0, help="Replay speed multiplier (0 = instant)")
     rep_p.add_argument("--target-ws", default=None, help="Forward replayed telemetry to target WebSocket URL")
 
+    # ── Subcommand: validate ─────────────────────────────────────────────────
+    val_p = subparsers.add_parser("validate", help="Validate causal and physical correctness of a simulation run")
+    val_p.add_argument("--run", type=Path, default=None, help="Path to run directory containing ground_truth.jsonl")
+    val_p.add_argument("--scenario", default="full_demo", help="Scenario to run headlessly and validate (default: full_demo)")
+    val_p.add_argument("--seed", type=int, default=42, help="Random seed for validation run")
+
     # ── Top-level / Server flags ──────────────────────────────────────────────
     parser.add_argument("--scenario", metavar="NAME", default=None, help="Load and run a named scenario on startup")
     parser.add_argument("--seed", type=int, default=None, metavar="INT", help="Random seed for reproducible scenario playback")
@@ -138,6 +144,31 @@ def handle_replay(args: argparse.Namespace) -> None:
     asyncio.run(_do_replay())
 
 
+def handle_validate(args: argparse.Namespace) -> None:
+    from simulator.evaluation.scenario_validator import ScenarioValidator
+    from simulator.evaluation.dataset_generator import DatasetGenerator
+    import tempfile
+
+    if args.run is not None:
+        report = ScenarioValidator.validate_run(args.run)
+    else:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            gen = DatasetGenerator(output_dir=Path(tmp_dir))
+            ds_path = gen.generate(
+                scenario_names=[args.scenario],
+                runs_per_scenario=1,
+                base_seed=args.seed,
+            )
+            run_dir = ds_path / args.scenario / "run_000000"
+            report = ScenarioValidator.validate_run(run_dir, scenario_name=args.scenario, seed=args.seed)
+
+    print()
+    print(report.print_summary())
+    print()
+    if not report.all_passed:
+        sys.exit(1)
+
+
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
@@ -168,6 +199,9 @@ def main() -> None:
         sys.exit(0)
     elif args.command == "replay":
         handle_replay(args)
+        sys.exit(0)
+    elif args.command == "validate":
+        handle_validate(args)
         sys.exit(0)
 
     # ── Apply CLI overrides to settings ──────────────────────────────────────
